@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 interface Contact {
   id: number;
@@ -30,6 +30,8 @@ const Admin = () => {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [activeTab, setActiveTab] = useState("contacts");
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const savedUsername = localStorage.getItem("adminUsername");
@@ -51,6 +53,16 @@ const Admin = () => {
     }
   }, [loggedIn]);
 
+  useEffect(() => {
+    if (loggedIn) {
+      if (location.pathname === "/admin" || location.pathname === "/admin/") {
+        navigate("/admin/dashboard", { replace: true });
+      }
+    } else if (location.pathname.includes("/admin/dashboard")) {
+      navigate("/admin", { replace: true });
+    }
+  }, [loggedIn, location.pathname, navigate]);
+
   const handleLogin = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (username.trim() === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
@@ -62,6 +74,7 @@ const Admin = () => {
       }
       setError("");
       setLoggedIn(true);
+      navigate("/admin/dashboard", { replace: true });
       return;
     }
 
@@ -75,6 +88,7 @@ const Admin = () => {
     setLoggedIn(false);
     setPassword("");
     setError("");
+    navigate("/admin", { replace: true });
   };
 
   const loadContacts = useCallback(() => {
