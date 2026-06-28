@@ -1,41 +1,70 @@
 import { FormEvent, useState } from "react";
-
-const NEWSLETTER_STORAGE_KEY = "adminNewsletterSubscribers";
+import { insertSubscriber, isSupabaseConfigured } from "@/lib/supabase";
 
 const Footer = () => {
   const [email, setEmail] = useState("");
   const [subscribed, setSubscribed] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubscribe = (event: FormEvent<HTMLFormElement>) => {
+  const getErrorMessage = (error: unknown) => {
+    if (error instanceof Error) return error.message;
+    if (error && typeof error === "object" && "message" in error) {
+      // @ts-expect-error - narrowing for dynamic Supabase error object
+      return (error as { message?: string }).message ?? JSON.stringify(error);
+    }
+    return "Unable to subscribe. Please try again later.";
+  };
+
+  const saveSubscriberLocally = (email: string) => {
+    const newSubscriber = {
+      id: Date.now(),
+      email,
+      created_at: new Date().toISOString(),
+    };
+    const existing = localStorage.getItem("adminNewsletterSubscribers");
+    const subscribers = existing ? JSON.parse(existing) : [];
+    localStorage.setItem("adminNewsletterSubscribers", JSON.stringify([...subscribers, newSubscriber]));
+  };
+
+  const handleSubscribe = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setFormError("");
+    setIsSubmitting(true);
 
     const trimmedEmail = email.trim();
-    if (!trimmedEmail) return;
-
-    const stored = localStorage.getItem(NEWSLETTER_STORAGE_KEY);
-    const subscribers = stored ? JSON.parse(stored) : [];
-    const uniqueSubscribers = Array.isArray(subscribers) ? subscribers : [];
-
-    const alreadySubscribed = uniqueSubscribers.some(
-      (item: { email: string }) => item.email.toLowerCase() === trimmedEmail.toLowerCase()
-    );
-
-    if (!alreadySubscribed) {
-      uniqueSubscribers.push({
-        id: Date.now(),
-        email: trimmedEmail,
-        subscribed_at: new Date().toISOString(),
-      });
-      localStorage.setItem(NEWSLETTER_STORAGE_KEY, JSON.stringify(uniqueSubscribers));
+    if (!trimmedEmail) {
+      setFormError("Please enter a valid email address.");
+      setIsSubmitting(false);
+      return;
     }
 
-    setSubscribed(true);
-    setEmail("");
+    try {
+      if (!isSupabaseConfigured) {
+        throw new Error("Supabase is not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your environment.");
+      }
+
+      await insertSubscriber({ email: trimmedEmail });
+      setSubscribed(true);
+      setEmail("");
+    } catch (error) {
+      const errorMessage = getErrorMessage(error);
+      if (error && typeof error === "object" && "code" in error && (error as { code: string }).code === "42501") {
+        saveSubscriberLocally(trimmedEmail);
+        setSubscribed(true);
+        setEmail("");
+        setFormError("Supabase blocked the insert due to row-level security. Subscription was saved locally.");
+      } else {
+        setFormError(errorMessage);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <footer className="bg-foreground text-primary-foreground py-12 px-4">
-      <div className="container mx-auto grid gap-8 md:grid-cols-[1fr_1.4fr] items-center">
+      <div className="container mx-auto grid gap-8 md:grid-cols-[1fr_1.4fr] items-center mb-10">
         <div>
           <h5 className="text-lg font-semibold">Newsletter</h5>
           <p className="text-sm text-primary-foreground/70">
@@ -53,18 +82,25 @@ const Footer = () => {
               required
             />
             <button
-              className="shrink-0 inline-flex items-center justify-center rounded-full bg-secondary px-6 py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+              className="shrink-0 inline-flex items-center justify-center rounded-full bg-secondary px-6 py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               type="submit"
+              disabled={isSubmitting}
             >
-              Subscribe
+              {isSubmitting ? "Subscribing..." : "Subscribe"}
             </button>
           </div>
+          {formError ? (
+            <p className="mt-3 text-sm text-red-500">{formError}</p>
+          ) : null}
           {subscribed ? (
             <p className="mt-3 text-sm text-green-500">Thank you! Your subscription request has been received.</p>
           ) : null}
         </form>
       </div>
-      <div className="container mx-auto flex flex-col gap-4 border-t border-border/60 pt-6 mt-10 md:flex-row md:items-center md:justify-between">
+
+      <hr className="border-primary-foreground/20 border-t my-8" />
+
+      <div className="container mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <img
             src="https://res.cloudinary.com/dmgrtwca6/image/upload/v1743814694/v_logo_white-removebg-preview_luxml7.png"

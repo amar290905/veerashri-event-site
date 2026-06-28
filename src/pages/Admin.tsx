@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { deleteContact, deleteSubscriber, fetchContacts, fetchSubscribers, isSupabaseConfigured } from "@/lib/supabase";
 
 interface Contact {
   id: number;
@@ -91,42 +92,72 @@ const Admin = () => {
     navigate("/admin", { replace: true });
   };
 
-  const loadContacts = useCallback(() => {
+  const loadContacts = useCallback(async () => {
     try {
+      if (isSupabaseConfigured) {
+        const data = await fetchContacts();
+        setContacts(Array.isArray(data) ? (data as Contact[]) : []);
+      } else {
+        const stored = localStorage.getItem(CONTACT_STORAGE_KEY);
+        const parsed = stored ? JSON.parse(stored) : [];
+        setContacts(Array.isArray(parsed) ? parsed : []);
+      }
+    } catch (err) {
+      console.error("Error loading contacts:", err);
       const stored = localStorage.getItem(CONTACT_STORAGE_KEY);
       const parsed = stored ? JSON.parse(stored) : [];
       setContacts(Array.isArray(parsed) ? parsed : []);
-    } catch (err) {
-      console.error("Error loading contacts:", err);
-      setContacts([]);
     }
   }, []);
 
-  const loadNewsletter = useCallback(() => {
+  const loadNewsletter = useCallback(async () => {
     try {
+      if (isSupabaseConfigured) {
+        const data = await fetchSubscribers();
+        setSubscribers(Array.isArray(data) ? (data as Subscriber[]) : []);
+      } else {
+        const stored = localStorage.getItem(NEWSLETTER_STORAGE_KEY);
+        const parsed = stored ? JSON.parse(stored) : [];
+        setSubscribers(Array.isArray(parsed) ? parsed : []);
+      }
+    } catch (err) {
+      console.error("Error loading newsletter subscribers:", err);
       const stored = localStorage.getItem(NEWSLETTER_STORAGE_KEY);
       const parsed = stored ? JSON.parse(stored) : [];
       setSubscribers(Array.isArray(parsed) ? parsed : []);
-    } catch (err) {
-      console.error("Error loading newsletter subscribers:", err);
-      setSubscribers([]);
     }
   }, []);
 
-  const handleDeleteContact = (id: number) => {
-    const stored = localStorage.getItem(CONTACT_STORAGE_KEY);
-    const parsed = stored ? JSON.parse(stored) : [];
-    const updated = Array.isArray(parsed) ? parsed.filter((contact: Contact) => contact.id !== id) : [];
-    localStorage.setItem(CONTACT_STORAGE_KEY, JSON.stringify(updated));
-    setContacts(updated);
+  const handleDeleteContact = async (id: number) => {
+    try {
+      if (isSupabaseConfigured) {
+        await deleteContact(id);
+      } else {
+        const stored = localStorage.getItem(CONTACT_STORAGE_KEY);
+        const parsed = stored ? JSON.parse(stored) : [];
+        const updated = Array.isArray(parsed) ? parsed.filter((contact: Contact) => contact.id !== id) : [];
+        localStorage.setItem(CONTACT_STORAGE_KEY, JSON.stringify(updated));
+      }
+      await loadContacts();
+    } catch (err) {
+      console.error("Error deleting contact:", err);
+    }
   };
 
-  const handleDeleteSubscriber = (id: number) => {
-    const stored = localStorage.getItem(NEWSLETTER_STORAGE_KEY);
-    const parsed = stored ? JSON.parse(stored) : [];
-    const updated = Array.isArray(parsed) ? parsed.filter((subscriber: Subscriber) => subscriber.id !== id) : [];
-    localStorage.setItem(NEWSLETTER_STORAGE_KEY, JSON.stringify(updated));
-    setSubscribers(updated);
+  const handleDeleteSubscriber = async (id: number) => {
+    try {
+      if (isSupabaseConfigured) {
+        await deleteSubscriber(id);
+      } else {
+        const stored = localStorage.getItem(NEWSLETTER_STORAGE_KEY);
+        const parsed = stored ? JSON.parse(stored) : [];
+        const updated = Array.isArray(parsed) ? parsed.filter((subscriber: Subscriber) => subscriber.id !== id) : [];
+        localStorage.setItem(NEWSLETTER_STORAGE_KEY, JSON.stringify(updated));
+      }
+      await loadNewsletter();
+    } catch (err) {
+      console.error("Error deleting subscriber:", err);
+    }
   };
 
   return (

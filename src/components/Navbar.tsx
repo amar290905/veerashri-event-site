@@ -44,15 +44,16 @@ const Navbar = () => {
         </a>
 
         <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              scrollToSection("contact");
-            }}
-            className="hidden lg:inline-flex px-5 py-2 rounded-full bg-[var(--secondary-color)] text-secondary-foreground text-sm font-medium hover:opacity-90 transition"
-          >
-            Book Your Slot
-          </a>
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            scrollToSection("contact");
+          }}
+          className="hidden lg:inline-flex px-5 py-2 rounded-full bg-[var(--secondary-color)] text-secondary-foreground text-sm font-medium hover:opacity-90 transition"
+        >
+          Book Your Slot
+        </a>
+
         <button
           onClick={() => setOpen(!open)}
           className="lg:hidden p-2 text-foreground"
@@ -62,8 +63,10 @@ const Navbar = () => {
         </button>
       </div>
 
+      <hr className="border-primary-foreground/20 border-t" />
+
       {/* Desktop nav */}
-      <nav className="hidden lg:block bg-primary border-t border-primary/20">
+      <nav className="hidden lg:block bg-primary">
         <div className="container flex items-center justify-center gap-8 h-12">
           {navLinks.map((l) => (
             <a
@@ -83,7 +86,7 @@ const Navbar = () => {
 
       {/* Mobile nav */}
       {open && (
-        <nav className="lg:hidden bg-primary border-t border-primary/20">
+        <nav className="lg:hidden bg-primary">
           <div className="container py-4 flex flex-col gap-3">
             {navLinks.map((l) => (
               <a

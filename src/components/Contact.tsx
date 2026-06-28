@@ -1,28 +1,70 @@
 import { Facebook, Instagram, Linkedin, Mail, MessageSquare, Phone, MapPin, Youtube } from "lucide-react";
 import { FormEvent, useState } from "react";
+import { insertContact, isSupabaseConfigured } from "@/lib/supabase";
 
 const Contact = () => {
   const [form, setForm] = useState({ name: "", email: "", phone: "", message: "" });
   const [statusMessage, setStatusMessage] = useState("");
+  const [formError, setFormError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
+  const saveContactLocally = (contact: { name: string; email: string; phone: string; message: string }) => {
     const newContact = {
       id: Date.now(),
+      name: contact.name,
+      email: contact.email,
+      phone: contact.phone,
+      message: contact.message,
+      created_at: new Date().toISOString(),
+    };
+    const existing = localStorage.getItem("adminContacts");
+    const contacts = existing ? JSON.parse(existing) : [];
+    localStorage.setItem("adminContacts", JSON.stringify([...contacts, newContact]));
+  };
+
+  const getErrorMessage = (error: unknown) => {
+    if (error instanceof Error) return error.message;
+    if (error && typeof error === "object" && "message" in error) {
+      // @ts-expect-error - narrowing for dynamic Supabase error object
+      return (error as { message?: string }).message ?? JSON.stringify(error);
+    }
+    return "Unable to send message. Please try again later.";
+  };
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setStatusMessage("");
+    setFormError("");
+    setIsSubmitting(true);
+
+    const contact = {
       name: form.name.trim(),
       email: form.email.trim(),
       phone: form.phone.trim(),
       message: form.message.trim(),
-      created_at: new Date().toISOString(),
     };
 
-    const existing = localStorage.getItem("adminContacts");
-    const contacts = existing ? JSON.parse(existing) : [];
-    localStorage.setItem("adminContacts", JSON.stringify([...contacts, newContact]));
+    try {
+      if (!isSupabaseConfigured) {
+        throw new Error("Supabase is not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your environment.");
+      }
 
-    setStatusMessage("Your message has been sent successfully. Thank you for contacting us.");
-    setForm({ name: "", email: "", phone: "", message: "" });
+      await insertContact(contact);
+      setStatusMessage("Your message has been sent successfully. Thank you for contacting us.");
+      setForm({ name: "", email: "", phone: "", message: "" });
+    } catch (error) {
+      const errorMessage = getErrorMessage(error);
+      if (error && typeof error === "object" && "code" in error && (error as { code: string }).code === "42501") {
+        saveContactLocally(contact);
+        setStatusMessage(
+          "Your message has been saved locally because Supabase row-level security blocked the insert. Configure Supabase table policies to allow anonymous writes."
+        );
+      } else {
+        setFormError(errorMessage);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -76,6 +118,11 @@ const Contact = () => {
               {statusMessage}
             </div>
           ) : null}
+          {formError ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+              {formError}
+            </div>
+          ) : null}
           <input
             type="text"
             placeholder="Your Name"
@@ -109,9 +156,10 @@ const Contact = () => {
           />
           <button
             type="submit"
-            className="w-full px-6 py-3 rounded-full bg-[var(--secondary-color)] text-secondary-foreground font-medium hover:opacity-90 transition"
+            disabled={isSubmitting}
+            className="w-full px-6 py-3 rounded-full bg-[var(--secondary-color)] text-secondary-foreground font-medium hover:opacity-90 transition disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Send Message
+            {isSubmitting ? "Sending..." : "Send Message"}
           </button>
         </form>
       </div>
